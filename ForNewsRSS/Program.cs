@@ -1,5 +1,4 @@
 ﻿using MongoDB.Driver;
-using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +13,7 @@ builder.Services.AddSingleton(mongoDatabase);
 
 // سرویس‌های پس‌زمینه
 builder.Services.AddHostedService<NewsRssBackgroundService>();
+
 builder.Services.AddHttpClient<TelegramBotService>();
 
 var app = builder.Build();
