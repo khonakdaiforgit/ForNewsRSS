@@ -6,28 +6,28 @@ public class TelegramBotService
 {
     private readonly HttpClient _httpClient;
     private readonly string _botToken;
-    private readonly string _chatId;
 
     public TelegramBotService(HttpClient httpClient, IConfiguration configuration)
     {
         _httpClient = httpClient;
         _botToken = configuration["Telegram:BotToken"]!;
-        _chatId = configuration["Telegram:ChatId"]!;
     }
 
-    public async Task SendNewsAsync(NewsItem news)
+    public async Task SendNewsAsync(NewsItem news, string chatId)
     {
         if (!string.IsNullOrWhiteSpace(news.ImageUrl))
-            await SendPhotoAsync(news);
+            await SendPhotoAsync(news, chatId);
         else
-            await SendMessageAsync(news);
+            await SendMessageAsync(news, chatId);
+
+        await Task.Delay(10000); // 10s delay to avoid Telegram rate limits (adjust as needed)
     }
 
-    private async Task SendMessageAsync(NewsItem news)
+    private async Task SendMessageAsync(NewsItem news,string chatId)
     {
         var payload = new
         {
-            chat_id = _chatId,
+            chat_id = chatId,
             text = BuildMessage(news),
             parse_mode = "HTML"
         };
@@ -35,7 +35,7 @@ public class TelegramBotService
         await PostJsonAsync("sendMessage", payload);
     }
 
-    private async Task SendPhotoAsync(NewsItem news)
+    private async Task SendPhotoAsync(NewsItem news, string chatId)
     {
         try
         {
@@ -51,7 +51,7 @@ public class TelegramBotService
                 imageResponse.Content.Headers.ContentLength == 0)
             {
                 // اگر دانلود نشد یا محتوا خالی بود → fallback به متن
-                await SendMessageAsync(news);
+                await SendMessageAsync(news, chatId);
                 return;
             }
 
@@ -60,7 +60,7 @@ public class TelegramBotService
             // بررسی ساده اینکه آیا واقعاً تصویر است
             if (imageStream.Length == 0)
             {
-                await SendMessageAsync(news);
+                await SendMessageAsync(news, chatId);
                 return;
             }
 
@@ -72,7 +72,7 @@ public class TelegramBotService
             imageContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
 
             form.Add(imageContent, "photo", "news.jpg");
-            form.Add(new StringContent(_chatId), "chat_id");
+            form.Add(new StringContent(chatId), "chat_id");
             form.Add(new StringContent(BuildMessage(news)), "caption");
             form.Add(new StringContent("HTML"), "parse_mode");
 
@@ -82,7 +82,7 @@ public class TelegramBotService
         {
             // هر خطایی → fallback به ارسال فقط متن
             Console.WriteLine($"Failed to send photo for news: {news.Title} message:{ex.Message.ToString()}");
-            await SendMessageAsync(news);
+            await SendMessageAsync(news, chatId);
         }
     }
     private async Task PostJsonAsync(string method, object payload)

@@ -1,65 +1,72 @@
-﻿using MongoDB.Driver;
+﻿using ForNewsRSS.Config;
+using ForNewsRSS.Data;
+using ForNewsRSS.Services;
+using MongoDB.Driver;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// اضافه کردن سرویس‌های MVC
-builder.Services.AddControllersWithViews();
+// ========================
+// تنظیمات MongoDB
+// ========================
+var mongoConnectionString = builder.Configuration.GetConnectionString("MongoDB")
+    ?? throw new InvalidOperationException("MongoDB connection string not found.");
 
-// MongoDB
-var mongoClient = new MongoClient(builder.Configuration.GetConnectionString("MongoDB"));
-var mongoDatabase = mongoClient.GetDatabase("NewsDb");
+var mongoDatabaseName = builder.Configuration["MongoDb:DatabaseName"]
+    ?? "NewsDb"; // می‌تونی از appsettings جدا کنی
 
-builder.Services.AddSingleton(mongoDatabase);
+var mongoClient = new MongoClient(mongoConnectionString);
+var mongoDatabase = mongoClient.GetDatabase(mongoDatabaseName);
 
-// سرویس‌های پس‌زمینه
-//builder.Services.AddHostedService<NewsRssBackgroundService>();
-builder.Services.AddHostedService<NYTimes_RssBackgroundService>();
+// ثبت به عنوان Singleton
+builder.Services.AddSingleton<IMongoDatabase>(mongoDatabase);
 
+// ========================
+// ثبت سایر سرویس‌ها
+// ========================
 
-builder.Services.AddHttpClient<TelegramBotService>();
+// TelegramBotService (نیاز به HttpClient داره — بهتره از IHttpClientFactory استفاده کنی)
+builder.Services.AddHttpClient<TelegramBotService>(); // این خط مهمه!
+builder.Services.AddScoped<TelegramBotService>(); // یا Singleton اگر مشکلی نداره
 
+// یا اگر می‌خوای Singleton باشه (معمولاً مشکلی نداره):
+// builder.Services.AddSingleton<TelegramBotService>();
+
+// ثبت DatabaseInitializationService (یک بار در startup اجرا می‌شه)
+builder.Services.AddHostedService<DatabaseInitializationService>();
+
+// ثبت RssBackgroundService (سرویس اصلی که همه منابع رو پردازش می‌کنه)
+//builder.Services.AddHostedService<RssBackgroundService>();
+
+// ========================
+// ساخت اپلیکیشن
+// ========================
 var app = builder.Build();
 
-// Middleware های استاندارد
-if (!app.Environment.IsDevelopment())
+// ========================
+// Middleware Pipeline
+// ========================
+
+// فقط در محیط Development این‌ها رو فعال کن
+if (app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Home/Error");
+    // اگر MVC یا Razor Pages داری، این‌ها رو نگه دار
+    // اما اگر فقط Background Service داری، این‌ها لازم نیست
+}
+else
+{
+    app.UseExceptionHandler("/Error"); // بهتره یک صفحه خطا داشته باشی یا لاگ کنی
     app.UseHsts();
 }
 
 app.UseHttpsRedirection();
-app.UseStaticFiles();
 
-app.UseRouting();
+// اگر وب اپلیکیشن داری (مثل API یا صفحه وب):
+// app.UseStaticFiles();
+// app.UseRouting();
+// app.UseAuthorization();
+// app.MapControllers(); // یا MapRazorPages و ...
 
-// مهم: Anti-Forgery رو فعال می‌کنیم چون حالا از فرم‌های MVC استفاده می‌کنیم
-app.UseAntiforgery();
-
-app.UseAuthorization();
-
-app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
-
-// ایجاد ایندکس‌ها (یک بار اجرا می‌شه)
-await CreateIndexesAsync(mongoDatabase);
-
+// اگر فقط Background Service داری (Worker Service style)، این middlewareها لازم نیست
+// و حتی می‌تونی همه‌شون رو حذف کنی
+app.MapGet("/", () => { return Results.Content("Running ..."); });
 app.Run();
-
-// تابع کمکی برای ایجاد ایندکس‌ها
-async Task CreateIndexesAsync(IMongoDatabase db)
-{
-    var newsCollection = mongoDatabase.GetCollection<NewsItem>("News");
-    var indexKeys = Builders<NewsItem>.IndexKeys.Ascending(item => item.Link);
-    var indexOptions = new CreateIndexOptions { Unique = true, Name = "unique_link" };
-    var indexModel = new CreateIndexModel<NewsItem>(indexKeys, indexOptions);
-    await newsCollection.Indexes.CreateOneAsync(indexModel);
-
-    // برای زبان‌های ترجمه‌شده
-    var languages = new[] { "fa" }; // بعداً اضافه کن
-    foreach (var lang in languages)
-    {
-        var col = db.GetCollection<NewsItem>($"News_{lang}");
-        await col.Indexes.CreateOneAsync(indexModel);
-    }
-}
