@@ -41,9 +41,6 @@ public class TelegramBotService
         {
             // ایجاد HttpClient موقت با Referer مناسب
             using var downloadClient = new HttpClient();
-            downloadClient.DefaultRequestHeaders.Referrer = new Uri("https://www.irna.ir/");
-            downloadClient.DefaultRequestHeaders.UserAgent.ParseAdd(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36");
 
             var imageResponse = await downloadClient.GetAsync(news.ImageUrl);
 

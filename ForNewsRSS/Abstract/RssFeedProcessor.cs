@@ -98,8 +98,8 @@ namespace ForNewsRSS.Abstract
             // درج دسته‌ای و ارسال به تلگرام
             if (newsToInsert.Any())
             {
-                NewsCollection.InsertManyAsync(newsToInsert, cancellationToken: ct);
-                SendToTelegramAsync(newsToInsert);
+                await NewsCollection.InsertManyAsync(newsToInsert, cancellationToken: ct);
+                await SendToTelegramAsync(newsToInsert);
                 Logger.LogInformation("{Count} new articles saved and sent for {Source}", newsToInsert.Count, Config.Name);
             }
             else

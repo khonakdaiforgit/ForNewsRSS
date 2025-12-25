@@ -35,7 +35,7 @@ builder.Services.AddScoped<TelegramBotService>(); // یا Singleton اگر مش�
 builder.Services.AddHostedService<DatabaseInitializationService>();
 
 // ثبت RssBackgroundService (سرویس اصلی که همه منابع رو پردازش می‌کنه)
-//builder.Services.AddHostedService<RssBackgroundService>();
+builder.Services.AddHostedService<RssBackgroundService>();
 
 // ========================
 // ساخت اپلیکیشن
