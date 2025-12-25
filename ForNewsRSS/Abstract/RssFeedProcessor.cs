@@ -29,7 +29,7 @@ namespace ForNewsRSS.Abstract
 
         public virtual async Task ProcessAsync(CancellationToken ct)
         {
-            await NewsCollection.DeleteManyAsync(c => c != null);
+            //await NewsCollection.DeleteManyAsync(c => c != null);
             var potentialNews = new List<(string Link, SyndicationItem Item)>();
             var allNewLinks = new HashSet<string>();
 
