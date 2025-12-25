@@ -119,9 +119,8 @@ public class TelegramBotService
         {news.Summary}
 
         📅 {news.PublishDate:yyyy-MM-dd}
-        📰 Source: {news.Source}
 
-        🔗 <a href="{news.Link}">ادامه مطلب</a>
+        🔗 <a href="{news.Link}">Read more</a>
         """;
     }
 }

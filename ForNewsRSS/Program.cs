@@ -12,7 +12,9 @@ var mongoDatabase = mongoClient.GetDatabase("NewsDb");
 builder.Services.AddSingleton(mongoDatabase);
 
 // سرویس‌های پس‌زمینه
-builder.Services.AddHostedService<NewsRssBackgroundService>();
+//builder.Services.AddHostedService<NewsRssBackgroundService>();
+builder.Services.AddHostedService<NYTimes_RssBackgroundService>();
+
 
 builder.Services.AddHttpClient<TelegramBotService>();
 
