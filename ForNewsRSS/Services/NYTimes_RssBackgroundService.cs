@@ -46,7 +46,6 @@ public class NYTimes_RssBackgroundService : BackgroundService
 
     private async Task FetchAndSaveNewsAsync(CancellationToken ct)
     {
-        await _newsCollection.DeleteManyAsync(c => c != null);
         // Collect all potential new links and items from all feeds first
         var potentialNews = new List<(string Link, SyndicationItem Item, string SourceName)>();
         var allNewLinks = new HashSet<string>();
