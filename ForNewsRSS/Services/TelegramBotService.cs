@@ -6,7 +6,7 @@ public class TelegramBotService
     private readonly HttpClient _httpClient;
     private readonly string _botToken;
     private readonly string _chatId;
-
+    //https://api.telegram.org/bot8001025516:AAEwKbdHszhIWxvGcWIwR-1DDLmvaGKu_xk/sendMessage?chat_id=-1003505807703&text=%D8%AA%D8%B3%D8%AA%20%D9%85%D9%88%D9%81%D9%82!%20%D8%B1%D8%A8%D8%A7%D8%AA%20%DA%A9%D8%A7%D8%B1%20%D9%85%DB%8C%E2%80%8C%DA%A9%D9%86%D9%87%20%E2%9C%85
     public TelegramBotService(HttpClient httpClient, IConfiguration configuration)
     {
         _httpClient = httpClient;
@@ -64,7 +64,7 @@ public class TelegramBotService
         {news.Summary}
 
         📅 {news.PublishDate:yyyy-MM-dd}
-        📰 Source: {news.Source}
+        📰 منبع: {news.Source}
 
         🔗 <a href="{news.Link}">Read more</a>
         """;

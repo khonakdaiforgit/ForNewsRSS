@@ -1,0 +1,121 @@
+﻿@{
+    ViewData["Title"] = "مدیریت ترجمه اخبار";
+    var lang = ViewBag.SelectedLanguage as string ?? "fa";
+    var langName = ViewBag.LanguageName as string ?? "فارسی";
+}
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+    <style>
+        body {
+            font-family: Tahoma, sans-serif;
+            background: #f4f4f4;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 40px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+
+        select, button, input[type=file] {
+            padding: 10px;
+            margin: 10px 5px;
+            font-size: 16px;
+        }
+
+        .alert {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .alert-danger {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        textarea {
+            width: 100%;
+            height: 150px;
+            padding: 10px;
+            font-family: monospace;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>مدیریت ترجمه اخبار</h1>
+
+        <form method="get">
+            <label>زبان مقصد:</label>
+            <select name="lang" onchange="this.form.submit()">
+                <option value="fa" selected="@(lang == "fa")">فارسی (fa)</option>
+                <!-- گزینه‌های بیشتر در آینده -->
+            </select>
+        </form>
+
+        <p><strong>تعداد اخبار ترجمه‌نشده:</strong> @ViewBag.UntranslatedCount</p>
+
+        <a href="@Url.Action("Download", new { lang })" class="btn">
+            <button type="button">دانلود ۵۰ خبر آخر ترجمه‌نشده (JSON)</button>
+        </a>
+
+        <hr>
+
+        <h3>پرامپت پیشنهادی برای هوش مصنوعی:</h3>
+        <textarea readonly id="prompt">
+            لطفاً تمام فیلدهای "Title" و "Summary" در این JSON را به زبان @langName ترجمه کن. 
+            فقط این دو فیلد را تغییر بده و بقیه ساختار JSON (از جمله "Id") را دقیقاً حفظ کن. 
+            خروجی فقط JSON معتبر باشه، بدون توضیح اضافی.
+        </textarea>
+
+        <hr>
+
+        <h3>آپلود فایل JSON ترجمه‌شده</h3>
+        <form method="post" enctype="multipart/form-data" asp asp-action="Upload">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="lang" value="@lang" />
+            <input type="file" name="file" accept=".json" required />
+            <button type="submit">آپلود و ذخیره ترجمه‌ها</button>
+        </form>
+
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success">@TempData["Success"]</div>
+        }
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger">@TempData["Error"]</div>
+        }
+        @if (TempData["Info"] != null)
+        {
+            <div class="alert alert-info">@TempData["Info"]</div>
+        }
+    </div>
+</body>
+</html>

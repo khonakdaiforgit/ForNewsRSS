@@ -158,24 +158,11 @@ public class NewsRssBackgroundService : BackgroundService
         if (newsToInsert.Any())
         {
             await _newsCollection.InsertManyAsync(newsToInsert, cancellationToken: ct);
-            ExecuteSendToTelegramChanelAsync(newsToInsert);
             _logger.LogInformation($"{newsToInsert.Count} new articles saved to database.");
         }
         else
         {
             _logger.LogInformation("No new articles to save.");
-        }
-    }
-    protected async Task ExecuteSendToTelegramChanelAsync(List<NewsItem> newsToInsert)
-    {
-        var orderedNews = newsToInsert
-            .OrderBy(n => n.PublishDate)
-            .ToList();
-
-        foreach (var newsItem in orderedNews)
-        {
-            await _telegramBotService.SendNewsAsync(newsItem);
-            await Task.Delay(TimeSpan.FromSeconds(10));
         }
     }
 }
