@@ -64,7 +64,7 @@ public class TelegramBotService
         {news.Summary}
 
         📅 {news.PublishDate:yyyy-MM-dd}
-        📰 منبع: {news.Source}
+        📰 Source: {news.Source}
 
         🔗 <a href="{news.Link}">Read more</a>
         """;

@@ -16,7 +16,7 @@ public class NewsRssBackgroundService : BackgroundService
     {
         ("https://feeds.content.dowjones.io/public/rss/RSSWorldNews", "WSJ"),
         ("https://rss.nytimes.com/services/xml/rss/nyt/MostViewed.xml", "NYTimes"),
-        ("https://feeds.bbci.co.uk/news/rss.xml", "BBC")
+        //("https://feeds.bbci.co.uk/news/rss.xml", "BBC")
     };
 
     public NewsRssBackgroundService(
@@ -158,11 +158,21 @@ public class NewsRssBackgroundService : BackgroundService
         if (newsToInsert.Any())
         {
             await _newsCollection.InsertManyAsync(newsToInsert, cancellationToken: ct);
+            SendToTelegram(newsToInsert);
             _logger.LogInformation($"{newsToInsert.Count} new articles saved to database.");
         }
         else
         {
             _logger.LogInformation("No new articles to save.");
+        }
+    }
+
+    private async Task SendToTelegram(List<NewsItem> toInsert)
+    {
+        foreach (var item in toInsert)
+        {
+            await _telegramBotService.SendNewsAsync(item);
+            await Task.Delay(1000 * 10);
         }
     }
 }
