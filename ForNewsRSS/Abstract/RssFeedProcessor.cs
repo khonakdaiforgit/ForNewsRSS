@@ -1,4 +1,5 @@
 ﻿using ForNewsRSS.Config;
+using ForNewsRSS.Entities;
 using MongoDB.Driver;
 using System.ServiceModel.Syndication;
 using System.Xml;
@@ -13,6 +14,9 @@ namespace ForNewsRSS.Abstract
         protected readonly TelegramBotService TelegramService;
         protected readonly SourceConfig Config;
 
+        protected readonly IMongoCollection<ProcessLog> ProcessLogCollection;
+        protected readonly IMongoCollection<TelegramErrorLog> ErrorLogCollection;
+
         protected RssFeedProcessor(
             ILogger logger,
             IMongoDatabase database,
@@ -23,10 +27,19 @@ namespace ForNewsRSS.Abstract
             Config = config;
             TelegramService = telegramService;
             NewsCollection = database.GetCollection<NewsItem>($"News_{config.Name}");
+
+            ProcessLogCollection = database.GetCollection<ProcessLog>(nameof(ProcessLog));
+            ErrorLogCollection = database.GetCollection<TelegramErrorLog>(nameof(TelegramErrorLog));
         }
 
         public virtual async Task ProcessAsync(CancellationToken ct)
         {
+            var startTime = DateTime.UtcNow;
+            int totalFetched = 0;
+            int newInserted = 0;
+            int sentToTelegram = 0;
+            int failedToSend = 0;
+
             //await NewsCollection.DeleteManyAsync(c => c != null);
             var potentialNews = new List<(string Link, SyndicationItem Item)>();
             var allNewLinks = new HashSet<string>();
@@ -44,6 +57,8 @@ namespace ForNewsRSS.Abstract
                         Logger.LogInformation("No items found in feed {Url} for source {Source}", url, Config.Name);
                         continue;
                     }
+
+                    totalFetched += feed.Items.Count(); // شمارش کل فچ‌شده
 
                     foreach (var item in feed.Items)
                     {
@@ -96,14 +111,31 @@ namespace ForNewsRSS.Abstract
             // درج دسته‌ای و ارسال به تلگرام
             if (newsToInsert.Any())
             {
+                newInserted = newsToInsert.Count;
+
                 await NewsCollection.InsertManyAsync(newsToInsert, cancellationToken: ct);
-                await SendToTelegramAsync(newsToInsert);
+                var (successful, failed) = await SendToTelegramAsync(newsToInsert);
+                sentToTelegram = successful;
+                failedToSend = failed;
                 Logger.LogInformation("{Count} new articles saved and sent for {Source}", newsToInsert.Count, Config.Name);
             }
             else
             {
                 Logger.LogInformation("No new articles to save for {Source}", Config.Name);
             }
+
+            // ذخیره لاگ روند کلی
+            var processLog = new ProcessLog
+            {
+                SourceName = Config.Name,
+                ExecutionTime = startTime,
+                TotalFetched = totalFetched,
+                NewInserted = newInserted,
+                SentToTelegram = sentToTelegram,
+                FailedToSend = failedToSend,
+                Notes = $"Processed in {DateTime.UtcNow - startTime} seconds"
+            };
+            await ProcessLogCollection.InsertOneAsync(processLog, cancellationToken: ct);
         }
 
         protected virtual NewsItem? ParseItem(SyndicationItem item, string sourceName)
@@ -156,12 +188,40 @@ namespace ForNewsRSS.Abstract
             return null;
         }
 
-        private async Task SendToTelegramAsync(List<NewsItem> toInsert)
+        private async Task<(int Successful, int Failed)> SendToTelegramAsync(List<NewsItem> toInsert)
         {
+            int successful = 0;
+            int failed = 0;
+
             foreach (var item in toInsert)
             {
-                await TelegramService.SendNewsAsync(item, Config.TelegramChatId);
+                try
+                {
+                    await TelegramService.SendNewsAsync(item, Config.TelegramChatId);
+                    successful++;
+                }
+                catch (Exception ex)
+                {
+                    failed++;
+                    // لاگ خطا در کالکشن جداگانه
+                    var errorLog = new TelegramErrorLog
+                    {
+                        SourceName = Config.Name,
+                        NewsLink = item.Link,
+                        NewsTitle = item.Title,
+                        NewsImageUrl = item.ImageUrl,
+                        NewsSummary = item.Summary,
+                        ErrorMessage = ex.Message,
+                        Details = ex.StackTrace ?? string.Empty,
+                        Timestamp = DateTime.UtcNow
+                    };
+                    await ErrorLogCollection.InsertOneAsync(errorLog);
+                    Logger.LogError(ex, "Failed to send news to Telegram: {Title}", item.Title);
+                }
             }
+
+            return (successful, failed);
         }
     }
+}
 }

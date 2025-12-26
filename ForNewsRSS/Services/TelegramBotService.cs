@@ -92,7 +92,7 @@ public class TelegramBotService
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"Telegram API Error ({method}): {response.StatusCode} - {error}");
+            throw new Exception($"Telegram API Error ({method}): {response.StatusCode} - {error}");
         }
     }
 
@@ -104,7 +104,7 @@ public class TelegramBotService
         if (!response.IsSuccessStatusCode)
         {
             var error = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"Telegram API Error ({method}): {response.StatusCode} - {error}");
+            throw new Exception($"Telegram API Error ({method}): {response.StatusCode} - {error}");
         }
     }
 
