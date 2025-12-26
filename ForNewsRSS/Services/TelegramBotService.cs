@@ -20,10 +20,10 @@ public class TelegramBotService
         else
             await SendMessageAsync(news, chatId);
 
-        await Task.Delay(10000); // 10s delay to avoid Telegram rate limits (adjust as needed)
+        await Task.Delay(1000 * 1); // 10s delay to avoid Telegram rate limits (adjust as needed)
     }
 
-    private async Task SendMessageAsync(NewsItem news,string chatId)
+    private async Task SendMessageAsync(NewsItem news, string chatId)
     {
         var payload = new
         {

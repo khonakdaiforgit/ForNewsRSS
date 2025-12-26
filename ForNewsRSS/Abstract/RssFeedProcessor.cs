@@ -1,10 +1,8 @@
-﻿// File: ForNewsRSS/Abstract/RssFeedProcessor.cs
-using ForNewsRSS.Config;
+﻿using ForNewsRSS.Config;
 using MongoDB.Driver;
 using System.ServiceModel.Syndication;
 using System.Xml;
 using System.Xml.Linq;
-using static System.Collections.Specialized.NameObjectCollectionBase;
 
 namespace ForNewsRSS.Abstract
 {

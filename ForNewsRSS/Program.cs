@@ -23,7 +23,7 @@ builder.Services.AddScoped<TelegramBotService>();
 
 builder.Services.AddHostedService<DatabaseInitializationService>();
 
-//builder.Services.AddHostedService<RssBackgroundService>();
+builder.Services.AddHostedService<RssBackgroundService>();
 
 
 var app = builder.Build();

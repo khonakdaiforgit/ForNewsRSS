@@ -88,8 +88,9 @@ namespace ForNewsRSS.Services
         {
             return source.Name switch
             {
-                //"NYTimes" => new NYTimesRssProcessor(logger, database, telegramService, source),
                 "BBC" => new BBCRssProcessor(logger, database, telegramService, source),
+                "CNN" => new CNNRssProcessor(logger, database, telegramService, source),
+                "Guardian" => new GuardianRssProcessor(logger, database, telegramService, source),
                 _ => new _DefaultRssProcessor(logger, database, telegramService, source)
             };
         }
