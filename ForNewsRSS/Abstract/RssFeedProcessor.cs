@@ -99,7 +99,7 @@ namespace ForNewsRSS.Abstract
             if (newsToInsert.Any())
             {
                 await NewsCollection.InsertManyAsync(newsToInsert, cancellationToken: ct);
-                SendToTelegramAsync(newsToInsert);
+                await SendToTelegramAsync(newsToInsert);
                 Logger.LogInformation("{Count} new articles saved and sent for {Source}", newsToInsert.Count, Config.Name);
             }
             else
