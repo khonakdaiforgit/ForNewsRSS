@@ -1,5 +1,6 @@
 ﻿using ForNewsRSS.Config;
 using ForNewsRSS.Entities;
+using ForNewsRSS.Services;
 using MongoDB.Driver;
 using System.ServiceModel.Syndication;
 using System.Xml;
@@ -34,110 +35,195 @@ namespace ForNewsRSS.Abstract
 
         public virtual async Task ProcessAsync(CancellationToken ct)
         {
-            var startTime = DateTime.UtcNow;
-            int totalFetched = 0;
-            int newInserted = 0;
-            int sentToTelegram = 0;
-            int failedToSend = 0;
-
-            //await NewsCollection.DeleteManyAsync(c => c != null);
-            var potentialNews = new List<(string Link, SyndicationItem Item)>();
-            var allNewLinks = new HashSet<string>();
-
-            // Fetch from all RSS URLs defined in config
-            foreach (var url in Config.RssUrls)
+            try
             {
-                try
+                //await NewsCollection.DeleteManyAsync(c => c != null);
+                var startTime = DateTime.UtcNow;
+                Logger.LogInformation("Starting processing for source {Source}", Config.Name);
+
+                int totalFetched = 0;
+                int newInserted = 0;
+                int sentToTelegram = 0;
+                int failedToSend = 0;
+
+                var potentialNews = new List<(string Link, SyndicationItem Item)>();
+                var allNewLinks = new HashSet<string>();
+
+                // === مرحله ۱: فچ RSS ===
+                foreach (var url in Config.RssUrls)
                 {
-                    using var reader = XmlReader.Create(url);
-                    var feed = SyndicationFeed.Load(reader);
-
-                    if (feed?.Items == null || !feed.Items.Any())
+                    try
                     {
-                        Logger.LogInformation("No items found in feed {Url} for source {Source}", url, Config.Name);
-                        continue;
-                    }
+                        Logger.LogDebug("Fetching RSS feed: {Url}", url);
 
-                    totalFetched += feed.Items.Count(); // شمارش کل فچ‌شده
+                        using var reader = XmlReader.Create(url);
+                        var feed = SyndicationFeed.Load(reader);
 
-                    foreach (var item in feed.Items)
-                    {
-                        var link = item.Links.FirstOrDefault()?.Uri?.ToString()?.Trim();
-                        if (string.IsNullOrEmpty(link))
-                            continue;
-
-                        if (allNewLinks.Add(link)) // فقط یک بار اضافه میشه حتی اگر در چند فید تکراری باشه
+                        if (feed?.Items == null || !feed.Items.Any())
                         {
-                            potentialNews.Add((link, item));
+                            Logger.LogInformation("No items found in feed {Url} for source {Source}", url, Config.Name);
+                            continue;
+                        }
+
+                        int itemCount = feed.Items.Count();
+
+                        Logger.LogInformation("Successfully loaded {Count} items from {Url} for {Source}", itemCount, url, Config.Name);
+
+                        foreach (var item in feed.Items)
+                        {
+                            var link = item.Links.FirstOrDefault()?.Uri?.ToString()?.Trim();
+                            if (string.IsNullOrEmpty(link))
+                            {
+                                Logger.LogWarning("Item without link skipped in feed {Url}", url);
+                                continue;
+                            }
+
+                            if (allNewLinks.Add(link))
+                            {
+                                potentialNews.Add((link, item));
+                            }
                         }
                     }
+                    catch (XmlException xmlEx)
+                    {
+                        Logger.LogError(xmlEx, "XML parsing error in RSS feed {Url} for source {Source}", url, Config.Name);
+                    }
+                    catch (HttpRequestException httpEx)
+                    {
+                        Logger.LogError(httpEx, "Network error while fetching RSS feed {Url} for source {Source}", url, Config.Name);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex, "Unexpected error reading RSS feed {Url} for source {Source}", url, Config.Name);
+                    }
+                }
 
-                    Logger.LogInformation("Processed feed {Url} - {Count} items found for {Source}", url, feed.Items.Count(), Config.Name);
+                Logger.LogInformation("Total unique potential news items collected: {Count} (from {Fetched} total fetched items)",
+                    potentialNews.Count, totalFetched);
+
+                if (!potentialNews.Any())
+                {
+                    Logger.LogInformation("No potential new items to process for {Source}. Finishing early.", Config.Name);
+
+                    // همچنان لاگ فرآیند را ذخیره کن (حتی اگر هیچ کاری انجام نشده)
+                    await SaveProcessLog(startTime, totalFetched, 0, 0, 0, "No new items");
+                    return;
+                }
+
+                // === مرحله ۲: چک تکراری بودن در دیتابیس ===
+                Logger.LogDebug("Checking {Count} links against existing database entries", allNewLinks.Count);
+
+                var existingLinks = await NewsCollection
+                    .Find(Builders<NewsItem>.Filter.In(n => n.Link, allNewLinks))
+                    .Project(n => n.Link)
+                    .ToListAsync(ct);
+
+                var existingLinksSet = new HashSet<string>(existingLinks);
+                int duplicatesFound = potentialNews.Count - (potentialNews.Count - existingLinksSet.Count);
+
+                Logger.LogInformation("Found {Duplicates} duplicate links already in database. {NewCount} truly new items.",
+                    duplicatesFound, potentialNews.Count - duplicatesFound);
+
+                // === مرحله ۳: پارس و ساخت آیتم‌های جدید ===
+                var newsToInsert = new List<NewsItem>();
+
+                foreach (var (link, item) in potentialNews)
+                {
+                    if (existingLinksSet.Contains(link))
+                        continue;
+
+                    var newsItem = ParseItem(item, Config.Name);
+                    if (newsItem != null)
+                    {
+                        newsToInsert.Add(newsItem);
+                    }
+                    else
+                    {
+                        Logger.LogWarning("Failed to parse item with link: {Link}", link);
+                    }
+                }
+
+                newInserted = newsToInsert.Count;
+
+                if (newInserted == 0)
+                {
+                    Logger.LogInformation("No truly new valid items to insert for {Source}.", Config.Name);
+                    await SaveProcessLog(startTime, totalFetched, 0, 0, 0, "No valid new items after parsing");
+                    return;
+                }
+
+                // === مرحله ۴: ذخیره در دیتابیس ===
+                //Logger.LogInformation("Inserting {Count} new news items into database for {Source}", newInserted);
+
+                try
+                {
+                    await NewsCollection.InsertManyAsync(newsToInsert, cancellationToken: ct);
+                    Logger.LogInformation("Successfully inserted {Count} new items into database", newInserted);
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogError(ex, "Error reading RSS feed {Url} for source {Source}", url, Config.Name);
+                    Logger.LogError(ex, "Failed to insert news items into MongoDB for source {Source}", Config.Name);
+                    // حتی در صورت خطا، لاگ فرآیند را ذخیره کن
+                    await SaveProcessLog(startTime, totalFetched, 0, 0, 0, "Insert failed: " + ex.Message);
+                    return;
                 }
-            }
+                totalFetched += newInserted;
 
-            if (!potentialNews.Any())
-            {
-                Logger.LogInformation("No new items to process for {Source}", Config.Name);
-                return;
-            }
+                // === مرحله ۵: ارسال به تلگرام ===
+                Logger.LogInformation("Starting to send {Count} new items to Telegram (ChatId: {ChatId})", newInserted, Config.TelegramChatId);
 
-            // چک کردن لینک‌های موجود در دیتابیس
-            var existingLinks = await NewsCollection
-                .Find(Builders<NewsItem>.Filter.In(n => n.Link, allNewLinks))
-                .Project(n => n.Link)
-                .ToListAsync(ct);
-
-            var existingLinksSet = new HashSet<string>(existingLinks);
-
-            // ساخت لیست آیتم‌های واقعاً جدید
-            var newsToInsert = new List<NewsItem>();
-
-            foreach (var (link, item) in potentialNews)
-            {
-                if (existingLinksSet.Contains(link))
-                    continue; // تکراریه
-
-                var newsItem = ParseItem(item, Config.Name);
-
-                if (newsItem != null)
-                    newsToInsert.Add(newsItem);
-            }
-
-            // درج دسته‌ای و ارسال به تلگرام
-            if (newsToInsert.Any())
-            {
-                newInserted = newsToInsert.Count;
-
-                await NewsCollection.InsertManyAsync(newsToInsert, cancellationToken: ct);
                 var (successful, failed) = await SendToTelegramAsync(newsToInsert);
+
                 sentToTelegram = successful;
                 failedToSend = failed;
-                Logger.LogInformation("{Count} new articles saved and sent for {Source}", newsToInsert.Count, Config.Name);
+
+                if (failed > 0)
+                {
+                    Logger.LogWarning("{Failed} out of {Total} items failed to send to Telegram for {Source}", failed, newInserted, Config.Name);
+                }
+                else
+                {
+                    Logger.LogInformation("All {Count} items successfully sent to Telegram", newInserted);
+                }
+
+                // === مرحله نهایی: ذخیره لاگ فرآیند ===
+                var duration = DateTime.UtcNow - startTime;
+                await SaveProcessLog(startTime, totalFetched, newInserted, sentToTelegram, failedToSend, $"Completed in {duration.TotalSeconds:F1}s");
+
+                Logger.LogInformation("Processing completed for {Source} in {Duration:F1} seconds. Fetched: {Fetched}, New: {New}, Sent: {Sent}, Failed: {Failed}",
+                    Config.Name, duration.TotalSeconds, totalFetched, newInserted, sentToTelegram, failedToSend);
             }
-            else
+            catch (Exception ex)
             {
-                Logger.LogInformation("No new articles to save for {Source}", Config.Name);
+                Logger.LogCritical(ex, "Critical error in processing {Source}", Config.Name);
+                // اختیاری: rethrow نکن تا اپ ادامه دهد
             }
 
-            // ذخیره لاگ روند کلی
+        }
+
+        // متد کمکی برای جلوگیری از تکرار کد ذخیره لاگ
+        private async Task SaveProcessLog(DateTime startTime, int fetched, int inserted, int sent, int failed, string notes)
+        {
             var processLog = new ProcessLog
             {
                 SourceName = Config.Name,
                 ExecutionTime = startTime,
-                TotalFetched = totalFetched,
-                NewInserted = newInserted,
-                SentToTelegram = sentToTelegram,
-                FailedToSend = failedToSend,
-                Notes = $"Processed in {DateTime.UtcNow - startTime} seconds"
+                TotalFetched = fetched,
+                NewInserted = inserted,
+                SentToTelegram = sent,
+                FailedToSend = failed,
+                Notes = notes
             };
-            await ProcessLogCollection.InsertOneAsync(processLog, cancellationToken: ct);
-        }
 
+            try
+            {
+                await ProcessLogCollection.InsertOneAsync(processLog);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to save ProcessLog for source {Source}", Config.Name);
+            }
+        }
         protected virtual NewsItem? ParseItem(SyndicationItem item, string sourceName)
         {
             var link = item.Links.FirstOrDefault()?.Uri?.ToString()?.Trim();
@@ -198,6 +284,7 @@ namespace ForNewsRSS.Abstract
                 try
                 {
                     await TelegramService.SendNewsAsync(item, Config.TelegramChatId);
+                    await Task.Delay(1000 * 3, CancellationToken.None);
                     successful++;
                 }
                 catch (Exception ex)
@@ -223,5 +310,4 @@ namespace ForNewsRSS.Abstract
             return (successful, failed);
         }
     }
-}
 }

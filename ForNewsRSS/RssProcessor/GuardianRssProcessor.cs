@@ -1,5 +1,6 @@
 ﻿using ForNewsRSS.Abstract;
 using ForNewsRSS.Config;
+using ForNewsRSS.Services;
 using MongoDB.Driver;
 using System.ServiceModel.Syndication;
 using System.Text.RegularExpressions;

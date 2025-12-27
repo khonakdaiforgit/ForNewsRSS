@@ -1,5 +1,4 @@
 ﻿using ForNewsRSS.Config;
-using Microsoft.Extensions.Configuration;
 using MongoDB.Driver;
 
 namespace ForNewsRSS.Data
@@ -34,7 +33,7 @@ namespace ForNewsRSS.Data
 
             foreach (var sourceName in sources)
             {
-                var collection = _database.GetCollection<NewsItem>($"News_{sourceName}");
+                var collection = _database.GetCollection<NewsItem>($"News_{sourceName.Name}");
 
                 var indexKeys = Builders<NewsItem>.IndexKeys.Ascending(item => item.Link);
                 var options = new CreateIndexOptions { Unique = true, Name = "unique_link" };

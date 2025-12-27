@@ -28,33 +28,57 @@ namespace ForNewsRSS.Services
         {
             _logger.LogInformation("RSS Aggregator started with {Count} sources.", _sources.Count);
 
-            // اجرای اولیه فوری
-            await ProcessAllSourcesAsync(stoppingToken);
+            // اجرای اولیه با staggered delay
+            await ProcessAllSourcesStaggeredAsync(stoppingToken);
 
-            // تنظیم تایمر جداگانه برای هر منبع
-            var timers = _sources.ToDictionary(
-                s => s,
-                s => new PeriodicTimer(s.FetchInterval)
-            );
-
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                var tasks = _sources.Select(async source =>
-                {
-                    if (await timers[source].WaitForNextTickAsync(stoppingToken))
-                    {
-                        await ProcessSourceAsync(source, stoppingToken);
-                    }
-                });
-
-                await Task.WhenAll(tasks);
-            }
+            // اجرای دوره‌ای: هر منبع در task جداگانه با loop خودش
+            var tasks = _sources.Select(source => RunPeriodicProcessing(source, stoppingToken));
+            await Task.WhenAll(tasks);
         }
 
-        private async Task ProcessAllSourcesAsync(CancellationToken ct)
+        private async Task RunPeriodicProcessing(SourceConfig source, CancellationToken stoppingToken)
         {
-            var tasks = _sources.Select(s => ProcessSourceAsync(s, ct));
-            await Task.WhenAll(tasks);
+            var delaySeconds = _sources.IndexOf(source) * 5; // staggered delay بر اساس ایندکس
+            var initialDelay = TimeSpan.FromSeconds(delaySeconds);
+
+            if (initialDelay > TimeSpan.Zero)
+            {
+                _logger.LogInformation("Applying initial delay of {Delay}s for source {Source}", initialDelay.TotalSeconds, source.Name);
+                await Task.Delay(initialDelay, stoppingToken);
+            }
+
+            using var timer = new PeriodicTimer(source.FetchInterval); // using برای dispose خودکار
+
+            try
+            {
+                while (await timer.WaitForNextTickAsync(stoppingToken))
+                {
+                    await ProcessSourceAsync(source, stoppingToken);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation("Periodic processing for {Source} canceled.", source.Name);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error in periodic processing for {Source}", source.Name);
+            }
+            // timer به خاطر using dispose می‌شود
+        }
+        private async Task ProcessAllSourcesStaggeredAsync(CancellationToken ct)
+        {
+            foreach (var (source, index) in _sources.Select((s, i) => (s, i)))
+            {
+                var delay = TimeSpan.FromSeconds(index * 5); // همان 15 ثانیه فاصله
+
+                if (delay > TimeSpan.Zero)
+                {
+                    await Task.Delay(delay, ct);
+                }
+
+                _ = ProcessSourceAsync(source, ct); // fire and forget — یا await اگر بخوای صبر کنی
+            }
         }
 
         private async Task ProcessSourceAsync(SourceConfig source, CancellationToken ct)

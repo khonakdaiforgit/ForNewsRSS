@@ -1,6 +1,7 @@
 ﻿// File: ForNewsRSS/RssProcessor/DefaultRssProcessor.cs
 using ForNewsRSS.Abstract;
 using ForNewsRSS.Config;
+using ForNewsRSS.Services;
 using MongoDB.Driver;
 
 namespace ForNewsRSS.RssProcessor

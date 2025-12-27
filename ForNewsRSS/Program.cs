@@ -1,4 +1,5 @@
 ﻿using ForNewsRSS.Data;
+using ForNewsRSS.Extensions;
 using ForNewsRSS.Services;
 using MongoDB.Driver;
 
@@ -23,7 +24,7 @@ builder.Services.AddScoped<TelegramBotService>();
 
 builder.Services.AddHostedService<DatabaseInitializationService>();
 
-//.Services.AddHostedService<RssBackgroundService>();
+builder.Services.AddHostedService<RssBackgroundService>();
 
 
 var app = builder.Build();
@@ -42,5 +43,6 @@ else
 
 app.UseHttpsRedirection();
 
-app.MapGet("/", () => { return Results.Content("Running ..."); });
+app.MapReportingEndpoints();
+
 app.Run();

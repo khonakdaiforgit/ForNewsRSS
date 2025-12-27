@@ -1,123 +1,145 @@
-﻿using System.Net.Http.Headers;
+﻿// File: TelegramBotService.cs
+using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 
-public class TelegramBotService
+namespace ForNewsRSS.Services
 {
-    private readonly HttpClient _httpClient;
-    private readonly string _botToken;
-
-    public TelegramBotService(HttpClient httpClient, IConfiguration configuration)
+    public class TelegramBotService
     {
-        _httpClient = httpClient;
-        _botToken = configuration["Telegram:BotToken"]!;
-    }
+        private readonly HttpClient _httpClient;
+        private readonly string _botToken;
+        private readonly ILogger<TelegramBotService> _logger;
 
-    public async Task SendNewsAsync(NewsItem news, string chatId)
-    {
-        if (!string.IsNullOrWhiteSpace(news.ImageUrl))
-            await SendPhotoAsync(news, chatId);
-        else
-            await SendMessageAsync(news, chatId);
-
-        await Task.Delay(1000 * 1); // 10s delay to avoid Telegram rate limits (adjust as needed)
-    }
-
-    private async Task SendMessageAsync(NewsItem news, string chatId)
-    {
-        var payload = new
+        public TelegramBotService(
+            HttpClient httpClient,
+            IConfiguration configuration,
+            ILogger<TelegramBotService> logger)
         {
-            chat_id = chatId,
-            text = BuildMessage(news),
-            parse_mode = "HTML"
-        };
+            _httpClient = httpClient;
+            _botToken = configuration["Telegram:BotToken"]
+                ?? throw new InvalidOperationException("Telegram:BotToken is missing in configuration.");
+            _logger = logger;
+        }
 
-        await PostJsonAsync("sendMessage", payload);
-    }
-
-    private async Task SendPhotoAsync(NewsItem news, string chatId)
-    {
-        try
+        public async Task SendNewsAsync(NewsItem news, string chatId)
         {
-            // ایجاد HttpClient موقت با Referer مناسب
-            using var downloadClient = new HttpClient();
-
-            var imageResponse = await downloadClient.GetAsync(news.ImageUrl);
-
-            if (!imageResponse.IsSuccessStatusCode ||
-                imageResponse.Content.Headers.ContentLength == 0)
+            try
             {
-                // اگر دانلود نشد یا محتوا خالی بود → fallback به متن
-                await SendMessageAsync(news, chatId);
-                return;
+                if (!string.IsNullOrWhiteSpace(news.ImageUrl))
+                {
+                    await SendPhotoWithUrlAsync(news, chatId);
+                }
+                else
+                {
+                    await SendMessageAsync(news, chatId);
+                }
+
+                // تأخیر ۱ ثانیه برای جلوگیری از rate limit تلگرام (حدود ۳۰ پیام در ثانیه به یک چت، اما بهتر محافظه‌کار باشیم)
             }
-
-            var imageStream = await imageResponse.Content.ReadAsStreamAsync();
-
-            // بررسی ساده اینکه آیا واقعاً تصویر است
-            if (imageStream.Length == 0)
+            catch (Exception ex)
             {
-                await SendMessageAsync(news, chatId);
-                return;
+                _logger.LogError(ex, "Unexpected error while sending news to Telegram (ChatId: {ChatId}, Title: {Title})",
+                    chatId, news.Title);
             }
-
-            using var form = new MultipartFormDataContent();
-            var imageContent = new StreamContent(imageStream);
-
-            // نوع تصویر را از هدر بگیریم یا پیش‌فرض jpeg بگذاریم
-            var contentType = imageResponse.Content.Headers.ContentType?.MediaType ?? "image/jpeg";
-            imageContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
-
-            form.Add(imageContent, "photo", "news.jpg");
-            form.Add(new StringContent(chatId), "chat_id");
-            form.Add(new StringContent(BuildMessage(news)), "caption");
-            form.Add(new StringContent("HTML"), "parse_mode");
-
-            await PostMultipartAsync("sendPhoto", form);
         }
-        catch (Exception ex)
+
+        private async Task SendMessageAsync(NewsItem news, string chatId)
         {
-            // هر خطایی → fallback به ارسال فقط متن
-            Console.WriteLine($"Failed to send photo for news: {news.Title} message:{ex.Message.ToString()}");
-            await SendMessageAsync(news, chatId);
-        }
-    }
-    private async Task PostJsonAsync(string method, object payload)
-    {
-        var url = $"https://api.telegram.org/bot{_botToken}/{method}";
-        var json = JsonSerializer.Serialize(payload);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync(url, content);
+            var payload = new
+            {
+                chat_id = chatId,
+                text = BuildMessage(news),
+                parse_mode = "HTML",
+                disable_web_page_preview = false
+            };
 
-        if (!response.IsSuccessStatusCode)
+            await PostJsonAsync("sendMessage", payload);
+            _logger.LogInformation("Message sent to chat {ChatId}: {Title}", chatId, news.Title);
+        }
+
+        private async Task SendPhotoWithUrlAsync(NewsItem news, string chatId)
         {
-            var error = await response.Content.ReadAsStringAsync();
-            throw new Exception($"Telegram API Error ({method}): {response.StatusCode} - {error}");
+            var payload = new
+            {
+                chat_id = chatId,
+                photo = news.ImageUrl,                    // مستقیم URL ارسال می‌شود
+                caption = BuildMessage(news),
+                parse_mode = "HTML",
+                disable_web_page_preview = true           // برای جلوگیری از پیش‌نمایش لینک در کپشن
+            };
+
+            try
+            {
+                await PostJsonAsync("sendPhoto", payload);
+                _logger.LogInformation("Photo sent via URL to chat {ChatId}: {Title}", chatId, news.Title);
+            }
+            catch (Exception ex) when (ex.Message.Contains("400") || ex.Message.Contains("BAD_REQUEST"))
+            {
+                // اگر URL تصویر مشکل داشت (مثلاً تلگرام نتونست دانلود کنه)، fallback به متن
+                _logger.LogWarning(ex, "Failed to send photo via URL (fallback to text): {Title} - ImageUrl: {ImageUrl}",
+                    news.Title, news.ImageUrl);
+
+                await SendMessageAsync(news, chatId);
+            }
         }
-    }
 
-    private async Task PostMultipartAsync(string method, MultipartFormDataContent content)
-    {
-        var url = $"https://api.telegram.org/bot{_botToken}/{method}";
-        var response = await _httpClient.PostAsync(url, content);
-
-        if (!response.IsSuccessStatusCode)
+        private async Task PostJsonAsync(string method, object payload)
         {
-            var error = await response.Content.ReadAsStringAsync();
-            throw new Exception($"Telegram API Error ({method}): {response.StatusCode} - {error}");
+            var url = $"https://api.telegram.org/bot{_botToken}/{method}";
+            var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.PostAsync(url, content);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+
+                // تشخیص خطای Too Many Requests
+                if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                {
+                    if (System.Text.Json.JsonDocument.Parse(errorBody).RootElement.TryGetProperty("parameters", out var paramsElement) &&
+                        paramsElement.TryGetProperty("retry_after", out var retryElement) &&
+                        retryElement.TryGetInt32(out var retryAfter))
+                    {
+                        _logger.LogWarning("Telegram rate limit hit. Retrying after {RetryAfter} seconds.", retryAfter);
+                        await Task.Delay(TimeSpan.FromSeconds(retryAfter + 1)); // +1 برای احتیاط
+                                                                                // دوباره امتحان کن (recursive یا loop)
+                        await PostJsonAsync(method, payload); // retry
+                        return;
+                    }
+                }
+
+                var errorMessage = $"Telegram API Error ({method}): {response.StatusCode} - {errorBody}";
+                _logger.LogError("Telegram API call failed: {ErrorMessage}", errorMessage);
+                throw new HttpRequestException(errorMessage);
+            }
         }
-    }
 
-    private string BuildMessage(NewsItem news)
-    {
-        return $"""
-        <b>{news.Title}</b>
+        private string BuildMessage(NewsItem news)
+        {
+            // استفاده از raw string literal برای خوانایی بیشتر
+            return $"""
+                    <b>{EscapeHtml(news.Title)}</b>
 
-        {news.Summary}
+                    {EscapeHtml(news.Summary)}
 
-        📅 {news.PublishDate:yyyy-MM-dd}
+                    📅 {news.PublishDate:yyyy-MM-dd}
 
-        🔗 <a href="{news.Link}">Read more</a>
-        """;
+                    🔗 <a href="{news.Link}">Read more</a>
+                    """;
+        }
+
+        // جلوگیری از مشکلات HTML injection در عنوان یا خلاصه (اختیاری اما توصیه می‌شود)
+        private static string EscapeHtml(string input)
+        {
+            if (string.IsNullOrEmpty(input)) return string.Empty;
+            return input
+                .Replace("&", "&amp;")
+                .Replace("<", "&lt;")
+                .Replace(">", "&gt;")
+                .Replace("\"", "&quot;");
+        }
     }
 }
