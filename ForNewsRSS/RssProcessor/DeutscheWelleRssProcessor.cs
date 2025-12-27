@@ -1,39 +1,29 @@
-﻿using ForNewsRSS.Config;
-using ForNewsRSS.Entities;
+﻿using ForNewsRSS.Abstract;
+using ForNewsRSS.Config;
 using ForNewsRSS.Services;
 using MongoDB.Driver;
+using System.Net;
 using System.ServiceModel.Syndication;
 using System.Xml;
 using System.Xml.Linq;
 
-namespace ForNewsRSS.Abstract
+namespace ForNewsRSS.RssProcessor
 {
-    public abstract class RssFeedProcessor
+    public class DeutscheWelleRssProcessor : RssFeedProcessor
     {
-        protected readonly ILogger Logger;
-        protected readonly IMongoCollection<NewsItem> NewsCollection;
-        protected readonly TelegramBotService TelegramService;
-        protected readonly SourceConfig Config;
-
-        protected readonly IMongoCollection<ProcessLog> ProcessLogCollection;
-        protected readonly IMongoCollection<TelegramErrorLog> ErrorLogCollection;
-
-        protected RssFeedProcessor(
+        private static readonly XNamespace RdfNs = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
+        private static readonly XNamespace DcNs = "http://purl.org/dc/elements/1.1/";
+        public DeutscheWelleRssProcessor(
             ILogger logger,
             IMongoDatabase database,
             TelegramBotService telegramService,
             SourceConfig config)
+            : base(logger, database, telegramService, config)
         {
-            Logger = logger;
-            Config = config;
-            TelegramService = telegramService;
-            NewsCollection = database.GetCollection<NewsItem>($"News_{config.Name}");
-
-            ProcessLogCollection = database.GetCollection<ProcessLog>(nameof(ProcessLog));
-            ErrorLogCollection = database.GetCollection<TelegramErrorLog>(nameof(TelegramErrorLog));
+            // هیچ override خاصی لازم نیست — از منطق پایه استفاده می‌کنه
         }
 
-        public virtual async Task ProcessAsync(CancellationToken ct)
+        public override async Task ProcessAsync(CancellationToken ct)
         {
             try
             {
@@ -54,33 +44,61 @@ namespace ForNewsRSS.Abstract
                 {
                     try
                     {
-                        Logger.LogDebug("Fetching RSS feed: {Url}", url);
+                        XmlDocument doc = new XmlDocument();
 
-                        using var reader = XmlReader.Create(url);
-                        var feed = SyndicationFeed.Load(reader);
-
-                        if (feed?.Items == null || !feed.Items.Any())
+                        // بعضی RSS ها بدون User-Agent خطا می‌دهند
+                        using (WebClient wc = new WebClient())
                         {
-                            Logger.LogInformation("No items found in feed {Url} for source {Source}", url, Config.Name);
+                            wc.Headers.Add("User-Agent", "Mozilla/5.0");
+                            string xml = wc.DownloadString(url);
+                            doc.LoadXml(xml);
+                        }
+
+                        // تعریف Namespace ها
+                        XmlNamespaceManager ns = new XmlNamespaceManager(doc.NameTable);
+                        ns.AddNamespace("rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#");
+                        ns.AddNamespace("rss", "http://purl.org/rss/1.0/");
+                        ns.AddNamespace("dc", "http://purl.org/dc/elements/1.1/");
+
+                        // انتخاب آیتم‌ها
+                        XmlNodeList items = doc.SelectNodes("//rss:item", ns);
+
+
+                        if (items == null || items.Count==0)
+                        {
+                            Logger.LogInformation("No items found in RDF feed {Url}", url);
                             continue;
                         }
 
-                        int itemCount = feed.Items.Count();
+                        totalFetched += items.Count;
+                        Logger.LogInformation("Loaded {Count} items from RDF feed {Url}", items.Count, url);
 
-                        Logger.LogInformation("Successfully loaded {Count} items from {Url} for {Source}", itemCount, url, Config.Name);
-
-                        foreach (var item in feed.Items)
+                        foreach (XmlNode itemElem in items)
                         {
-                            var link = item.Links.FirstOrDefault()?.Uri?.ToString()?.Trim();
-                            if (string.IsNullOrEmpty(link))
+                            string title = itemElem.SelectSingleNode("rss:title", ns)?.InnerText;
+                            string link = itemElem.SelectSingleNode("rss:link", ns)?.InnerText;
+                            string description = itemElem.SelectSingleNode("rss:description", ns)?.InnerText;
+                            string date = itemElem.SelectSingleNode("dc:date", ns)?.InnerText;
+
+                            if (string.IsNullOrEmpty(link) || string.IsNullOrEmpty(title))
                             {
-                                Logger.LogWarning("Item without link skipped in feed {Url}", url);
+                                Logger.LogWarning("Item missing title or link skipped in {Url}", url);
                                 continue;
                             }
 
+                            // ساخت SyndicationItem دستی برای سازگاری با بقیه کد
+                            var syndItem = new SyndicationItem
+                            {
+                                Title = new TextSyndicationContent(title ?? "No title"),
+                                Summary = new TextSyndicationContent(description ?? string.Empty),
+                                PublishDate = ParseDcDate(date),
+                            };
+
+                            syndItem.Links.Add(new SyndicationLink(new Uri(link)));
+
                             if (allNewLinks.Add(link))
                             {
-                                potentialNews.Add((link, item));
+                                potentialNews.Add((link, syndItem));
                             }
                         }
                     }
@@ -106,7 +124,7 @@ namespace ForNewsRSS.Abstract
                     Logger.LogInformation("No potential new items to process for {Source}. Finishing early.", Config.Name);
 
                     // همچنان لاگ فرآیند را ذخیره کن (حتی اگر هیچ کاری انجام نشده)
-                    await SaveProcessLog(startTime, totalFetched, 0, 0, 0, "No new items");
+                    await base.SaveProcessLog(startTime, totalFetched, 0, 0, 0, "No new items");
                     return;
                 }
 
@@ -172,7 +190,7 @@ namespace ForNewsRSS.Abstract
                 // === مرحله ۵: ارسال به تلگرام ===
                 Logger.LogInformation("Starting to send {Count} new items to Telegram (ChatId: {ChatId})", newInserted, Config.TelegramChatId);
 
-                var (successful, failed) = await SendToTelegramAsync(newsToInsert);
+                var (successful, failed) = await base.SendToTelegramAsync(newsToInsert);
 
                 sentToTelegram = successful;
                 failedToSend = failed;
@@ -198,116 +216,18 @@ namespace ForNewsRSS.Abstract
                 Logger.LogCritical(ex, "Critical error in processing {Source}", Config.Name);
                 // اختیاری: rethrow نکن تا اپ ادامه دهد
             }
-
         }
 
-        // متد کمکی برای جلوگیری از تکرار کد ذخیره لاگ
-        protected async Task SaveProcessLog(DateTime startTime, int fetched, int inserted, int sent, int failed, string notes)
+        private DateTimeOffset ParseDcDate(string? dateStr)
         {
-            var processLog = new ProcessLog
-            {
-                SourceName = Config.Name,
-                ExecutionTime = startTime,
-                TotalFetched = fetched,
-                NewInserted = inserted,
-                SentToTelegram = sent,
-                FailedToSend = failed,
-                Notes = notes
-            };
+            if (string.IsNullOrEmpty(dateStr))
+                return DateTimeOffset.UtcNow;
 
-            try
-            {
-                await ProcessLogCollection.InsertOneAsync(processLog);
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "Failed to save ProcessLog for source {Source}", Config.Name);
-            }
-        }
-        protected virtual NewsItem? ParseItem(SyndicationItem item, string sourceName)
-        {
-            var link = item.Links.FirstOrDefault()?.Uri?.ToString()?.Trim();
-            if (string.IsNullOrEmpty(link))
-                return null;
+            // فرمت DC date معمولاً ISO 8601 هست مثل 2025-12-27T17:59:00Z
+            if (DateTimeOffset.TryParse(dateStr, out var dt))
+                return dt;
 
-            string? imageUrl = ExtractImage(item);
-
-            var publishDate = item.PublishDate != DateTimeOffset.MinValue
-                ? item.PublishDate.DateTime
-                : item.LastUpdatedTime != DateTimeOffset.MinValue
-                    ? item.LastUpdatedTime.DateTime
-                    : DateTime.UtcNow;
-
-            return new NewsItem
-            {
-                Title = item.Title?.Text?.Trim() ?? "No title",
-                Summary = item.Summary?.Text?.Trim() ?? string.Empty,
-                Link = link,
-                ImageUrl = imageUrl,
-                PublishDate = publishDate,
-                Source = sourceName
-            };
-        }
-
-        protected virtual string? ExtractImage(SyndicationItem item)
-        {
-            // media:content
-            var mediaContent = item.ElementExtensions
-                .FirstOrDefault(e => e.OuterName == "content" &&
-                                    e.OuterNamespace == "http://search.yahoo.com/mrss/");
-
-            if (mediaContent != null)
-            {
-                return mediaContent.GetObject<XElement>().Attribute("url")?.Value;
-            }
-
-            // media:thumbnail
-            var mediaThumbnail = item.ElementExtensions
-                .FirstOrDefault(e => e.OuterName == "thumbnail" &&
-                                    e.OuterNamespace == "http://search.yahoo.com/mrss/");
-
-            if (mediaThumbnail != null)
-            {
-                return mediaThumbnail.GetObject<XElement>().Attribute("url")?.Value;
-            }
-
-            return null;
-        }
-
-        protected async Task<(int Successful, int Failed)> SendToTelegramAsync(List<NewsItem> toInsert)
-        {
-            int successful = 0;
-            int failed = 0;
-
-            foreach (var item in toInsert)
-            {
-                try
-                {
-                    await TelegramService.SendNewsAsync(item, Config.TelegramChatId);
-                    await Task.Delay(1000 * 3, CancellationToken.None);
-                    successful++;
-                }
-                catch (Exception ex)
-                {
-                    failed++;
-                    // لاگ خطا در کالکشن جداگانه
-                    var errorLog = new TelegramErrorLog
-                    {
-                        SourceName = Config.Name,
-                        NewsLink = item.Link,
-                        NewsTitle = item.Title,
-                        NewsImageUrl = item.ImageUrl,
-                        NewsSummary = item.Summary,
-                        ErrorMessage = ex.Message,
-                        Details = ex.StackTrace ?? string.Empty,
-                        Timestamp = DateTime.UtcNow
-                    };
-                    await ErrorLogCollection.InsertOneAsync(errorLog);
-                    Logger.LogError(ex, "Failed to send news to Telegram: {Title}", item.Title);
-                }
-            }
-
-            return (successful, failed);
+            return DateTimeOffset.UtcNow;
         }
     }
 }
