@@ -21,7 +21,7 @@ namespace ForNewsRSS.Extensions
                     .ToListAsync();
 
                 var sb = new StringBuilder();
-                sb.AppendLine("Server Running V:1.103");
+                sb.AppendLine("Server Running V:1.104");
                 sb.AppendLine();
 
                 // === جدول آمار کلی منابع ===
