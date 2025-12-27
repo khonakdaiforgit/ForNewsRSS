@@ -115,6 +115,7 @@ namespace ForNewsRSS.Services
                 "BBC" => new BBCRssProcessor(logger, database, telegramService, source),
                 "CNN" => new CNNRssProcessor(logger, database, telegramService, source),
                 "Guardian" => new GuardianRssProcessor(logger, database, telegramService, source),
+                "ABCNews" => new ABCNewsRssProcessor(logger, database, telegramService, source),
                 _ => new _DefaultRssProcessor(logger, database, telegramService, source)
             };
         }
