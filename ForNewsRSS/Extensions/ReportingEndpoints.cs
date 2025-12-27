@@ -1,4 +1,6 @@
-﻿using ForNewsRSS.Entities;
+﻿// File: Extensions/ReportingEndpoints.cs
+
+using ForNewsRSS.Entities;
 using MongoDB.Driver;
 using System.Text;
 
@@ -10,23 +12,24 @@ namespace ForNewsRSS.Extensions
         {
             app.MapGet("/", async (IMongoDatabase database) =>
             {
-                var processLogCollection = database.GetCollection<ProcessLog>(nameof(ProcessLog));
-                var errorLogCollection = database.GetCollection<TelegramErrorLog>(nameof(TelegramErrorLog));
+                var processLogCollection = database.GetCollection<ProcessLog>("ProcessLogs");
+                var errorLogCollection = database.GetCollection<TelegramErrorLog>("TelegramErrorLogs");
 
-                // Get unique source names
+                // دریافت لیست منحصربه‌فرد منابع
                 var distinctSources = await processLogCollection
                     .Distinct(p => p.SourceName, Builders<ProcessLog>.Filter.Empty)
                     .ToListAsync();
 
                 var sb = new StringBuilder();
                 sb.AppendLine("Running Server ...");
+                sb.AppendLine();
 
-                // Summary Table - Total Statistics per Source
+                // === جدول آمار کلی منابع ===
                 sb.AppendLine("=== RSS Sources Overall Statistics (All Time Summary) ===");
                 sb.AppendLine();
-                sb.AppendLine("+----------------+----------------+-------------------+------------------------+------------------+");
-                sb.AppendLine("| Source         | Total Fetched  | Total New Inserted | Total Sent to Telegram | Total Failed     |");
-                sb.AppendLine("+----------------+----------------+-------------------+------------------------+------------------+");
+                sb.AppendLine("+----------------+-------------+----------------+------------------------+------------------+");
+                sb.AppendLine("| Source         | Executions  | Total Fetched  | Total Sent to Telegram | Total Failed     |");
+                sb.AppendLine("+----------------+-------------+----------------+------------------------+------------------+");
 
                 foreach (var source in distinctSources.OrderBy(s => s))
                 {
@@ -34,19 +37,19 @@ namespace ForNewsRSS.Extensions
                         .Find(p => p.SourceName == source)
                         .ToListAsync();
 
+                    int executionCount = logs.Count;                 // تعداد دفعات اجرا
                     long totalFetched = logs.Sum(l => l.TotalFetched);
-                    long totalInserted = logs.Sum(l => l.NewInserted);
                     long totalSent = logs.Sum(l => l.SentToTelegram);
                     long totalFailed = logs.Sum(l => l.FailedToSend);
 
-                    sb.AppendLine($"| {source,-14} | {totalFetched,14} | {totalInserted,17} | {totalSent,22} | {totalFailed,16} |");
+                    sb.AppendLine($"| {source,-14} | {executionCount,11} | {totalFetched,14} | {totalSent,22} | {totalFailed,16} |");
                 }
 
-                sb.AppendLine("+----------------+----------------+-------------------+------------------------+------------------+");
+                sb.AppendLine("+----------------+-------------+----------------+------------------------+------------------+");
                 sb.AppendLine();
                 sb.AppendLine();
 
-                // Last 100 Telegram Errors
+                // === لیست آخرین ۱۰۰ خطای تلگرام ===
                 sb.AppendLine("=== Last 100 Telegram Send Errors (Newest First) ===");
                 sb.AppendLine();
 
