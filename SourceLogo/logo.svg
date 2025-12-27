@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="210mm"
+   height="297mm"
+   viewBox="0 0 210 297"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.3 (0e150ed6c4, 2023-07-21)"
+   sodipodi:docname="logo.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="2.4208333"
+     inkscape:cx="458.51979"
+     inkscape:cy="412.87436"
+     inkscape:window-width="1920"
+     inkscape:window-height="1009"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs1">
+    <linearGradient
+       id="linearGradient1"
+       inkscape:collect="always">
+      <stop
+         style="stop-color:#ff0000;stop-opacity:1;"
+         offset="0.41397849"
+         id="stop1" />
+      <stop
+         style="stop-color:#ff0000;stop-opacity:0.21428572;"
+         offset="1"
+         id="stop2" />
+    </linearGradient>
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient1"
+       id="linearGradient2"
+       x1="81.176956"
+       y1="140.84929"
+       x2="132.93089"
+       y2="140.84929"
+       gradientUnits="userSpaceOnUse"
+       spreadMethod="pad" />
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     inkscape:export-filename="Guardian.png"
+     inkscape:export-xdpi="214.78741"
+     inkscape:export-ydpi="214.78741">
+    <ellipse
+       style="fill:#1f2e60;stroke-width:0.264999;fill-opacity:1"
+       id="path1"
+       cx="107.05379"
+       cy="119.16996"
+       rx="29.564114"
+       ry="29.330036" />
+    <ellipse
+       style="fill:#ffffff;fill-opacity:1;stroke-width:0.229314"
+       id="ellipse2"
+       cx="107.05379"
+       cy="119.16996"
+       rx="25.582966"
+       ry="25.380409" />
+    <path
+       class="cls-2"
+       d="M 77.72375,119.16998 A 29.330037,29.330037 0 1 1 107.05379,148.5 29.330037,29.330037 0 0 1 77.72375,119.16998 Z m 44.05433,2.95434 3.01127,-1.34678 v -0.9247 h -16.36982 v 0.83935 l 3.19618,1.11914 v 19.17714 c 4.13989,-0.86307 8.46944,-3.38111 10.16237,-4.99345 z M 109.69041,97.654953 h 0.0901 V 96.706522 C 99.608647,96.023657 85.714223,103.60631 85.9134,119.19368 c -0.199177,15.54469 13.695247,23.1226 23.86712,22.44447 v -0.94842 h -0.0901 c -6.78597,0 -10.669773,-9.14756 -10.475345,-21.53399 -0.194428,-12.34849 3.689375,-21.500787 10.475345,-21.500787 z m 12.36747,4.082967 c -1.70244,-1.854174 -6.25013,-4.467075 -10.22876,-5.074072 v 0.94843 l 9.25188,12.694652 h 0.97688 z"
+       id="path2"
+       style="display:inline;fill:#1f2e60;fill-rule:evenodd;stroke-width:0.474212" />
+    <g
+       id="g2">
+      <path
+         id="path1-3"
+         style="mix-blend-mode:normal;fill:url(#linearGradient2);fill-opacity:1;fill-rule:nonzero;stroke-width:0.265112;stroke-dasharray:none;opacity:0.56699029"
+         d="m 81.176957,133.19859 a 29.564114,29.330036 0 0 0 25.876973,15.30139 29.564114,29.330036 0 0 0 25.87697,-15.30139 z" />
+      <text
+         xml:space="preserve"
+         style="font-size:12.7px;line-height:1.4;font-family:'Segoe Script';-inkscape-font-specification:'Segoe Script';text-align:justify;letter-spacing:0px;direction:rtl;fill:#ff0000;fill-opacity:1;stroke-width:0.264999"
+         x="119.53999"
+         y="144.55037"
+         id="text1"><tspan
+           sodipodi:role="line"
+           id="tspan1"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12.7px;font-family:Tahoma;-inkscape-font-specification:Tahoma;fill:#ffffff;stroke-width:0.265"
+           x="119.53999"
+           y="144.55037">feed</tspan></text>
+    </g>
+  </g>
+</svg>
