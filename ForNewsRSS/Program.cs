@@ -45,4 +45,6 @@ app.UseHttpsRedirection();
 
 app.MapReportingEndpoints();
 
+app.MapGet("/isRunning", () => { return Results.Content("Running ..."); });
+
 app.Run();
