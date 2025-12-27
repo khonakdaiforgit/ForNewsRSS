@@ -12,8 +12,8 @@ namespace ForNewsRSS.Extensions
         {
             app.MapGet("/", async (IMongoDatabase database) =>
             {
-                var processLogCollection = database.GetCollection<ProcessLog>("ProcessLogs");
-                var errorLogCollection = database.GetCollection<TelegramErrorLog>("TelegramErrorLogs");
+                var processLogCollection = database.GetCollection<ProcessLog>("ProcessLog");
+                var errorLogCollection = database.GetCollection<TelegramErrorLog>("TelegramErrorLog");
 
                 // دریافت لیست منحصربه‌فرد منابع
                 var distinctSources = await processLogCollection
