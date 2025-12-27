@@ -70,7 +70,6 @@ namespace ForNewsRSS.RssProcessor
                             continue;
                         }
 
-                        totalFetched += items.Count;
                         Logger.LogInformation("Loaded {Count} items from RDF feed {Url}", items.Count, url);
 
                         foreach (XmlNode itemElem in items)
