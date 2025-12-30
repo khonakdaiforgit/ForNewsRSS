@@ -1,6 +1,4 @@
-﻿// File: Extensions/ReportingEndpoints.cs
-
-using ForNewsRSS.Entities;
+﻿using ForNewsRSS.Entities;
 using MongoDB.Driver;
 using System.Text;
 
@@ -21,7 +19,7 @@ namespace ForNewsRSS.Extensions
                     .ToListAsync();
 
                 var sb = new StringBuilder();
-                sb.AppendLine("Server Running V:1.104");
+                sb.AppendLine("Server Running V:1.105");
                 sb.AppendLine();
 
                 // === جدول آمار کلی منابع ===
