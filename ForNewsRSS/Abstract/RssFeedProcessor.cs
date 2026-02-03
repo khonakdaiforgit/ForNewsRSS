@@ -37,7 +37,6 @@ namespace ForNewsRSS.Abstract
         {
             try
             {
-                //await NewsCollection.DeleteManyAsync(c => c != null);
                 var startTime = DateTime.UtcNow;
                 Logger.LogInformation("Starting processing for source {Source}", Config.Name);
 
@@ -49,7 +48,6 @@ namespace ForNewsRSS.Abstract
                 var potentialNews = new List<(string Link, SyndicationItem Item)>();
                 var allNewLinks = new HashSet<string>();
 
-                // === مرحله ۱: فچ RSS ===
                 foreach (var url in Config.RssUrls)
                 {
                     try
@@ -105,12 +103,10 @@ namespace ForNewsRSS.Abstract
                 {
                     Logger.LogInformation("No potential new items to process for {Source}. Finishing early.", Config.Name);
 
-                    // همچنان لاگ فرآیند را ذخیره کن (حتی اگر هیچ کاری انجام نشده)
                     await SaveProcessLog(startTime, totalFetched, 0, 0, 0, "No new items");
                     return;
                 }
 
-                // === مرحله ۲: چک تکراری بودن در دیتابیس ===
                 Logger.LogDebug("Checking {Count} links against existing database entries", allNewLinks.Count);
 
                 var existingLinks = await NewsCollection
@@ -124,7 +120,6 @@ namespace ForNewsRSS.Abstract
                 Logger.LogInformation("Found {Duplicates} duplicate links already in database. {NewCount} truly new items.",
                     duplicatesFound, potentialNews.Count - duplicatesFound);
 
-                // === مرحله ۳: پارس و ساخت آیتم‌های جدید ===
                 var newsToInsert = new List<NewsItem>();
 
                 foreach (var (link, item) in potentialNews)
@@ -152,9 +147,7 @@ namespace ForNewsRSS.Abstract
                     return;
                 }
 
-                // === مرحله ۴: ذخیره در دیتابیس ===
-                //Logger.LogInformation("Inserting {Count} new news items into database for {Source}", newInserted);
-
+       
                 try
                 {
                     await NewsCollection.InsertManyAsync(newsToInsert, cancellationToken: ct);
@@ -163,13 +156,12 @@ namespace ForNewsRSS.Abstract
                 catch (Exception ex)
                 {
                     Logger.LogError(ex, "Failed to insert news items into MongoDB for source {Source}", Config.Name);
-                    // حتی در صورت خطا، لاگ فرآیند را ذخیره کن
+
                     await SaveProcessLog(startTime, totalFetched, 0, 0, 0, "Insert failed: " + ex.Message);
                     return;
                 }
                 totalFetched += newInserted;
 
-                // === مرحله ۵: ارسال به تلگرام ===
                 Logger.LogInformation("Starting to send {Count} new items to Telegram (ChatId: {ChatId})", newInserted, Config.TelegramChatId);
 
                 var (successful, failed) = await SendToTelegramAsync(newsToInsert);
@@ -186,7 +178,6 @@ namespace ForNewsRSS.Abstract
                     Logger.LogInformation("All {Count} items successfully sent to Telegram", newInserted);
                 }
 
-                // === مرحله نهایی: ذخیره لاگ فرآیند ===
                 var duration = DateTime.UtcNow - startTime;
                 await SaveProcessLog(startTime, totalFetched, newInserted, sentToTelegram, failedToSend, $"Completed in {duration.TotalSeconds:F1}s");
 
@@ -196,12 +187,10 @@ namespace ForNewsRSS.Abstract
             catch (Exception ex)
             {
                 Logger.LogCritical(ex, "Critical error in processing {Source}", Config.Name);
-                // اختیاری: rethrow نکن تا اپ ادامه دهد
             }
 
         }
 
-        // متد کمکی برای جلوگیری از تکرار کد ذخیره لاگ
         protected async Task SaveProcessLog(DateTime startTime, int fetched, int inserted, int sent, int failed, string notes)
         {
             var processLog = new ProcessLog
@@ -290,7 +279,6 @@ namespace ForNewsRSS.Abstract
                 catch (Exception ex)
                 {
                     failed++;
-                    // لاگ خطا در کالکشن جداگانه
                     var errorLog = new TelegramErrorLog
                     {
                         SourceName = Config.Name,

@@ -20,7 +20,6 @@ namespace ForNewsRSS.RssProcessor
             SourceConfig config)
             : base(logger, database, telegramService, config)
         {
-            // هیچ override خاصی لازم نیست — از منطق پایه استفاده می‌کنه
         }
 
         public override async Task ProcessAsync(CancellationToken ct)
@@ -46,7 +45,6 @@ namespace ForNewsRSS.RssProcessor
                     {
                         XmlDocument doc = new XmlDocument();
 
-                        // بعضی RSS ها بدون User-Agent خطا می‌دهند
                         using (WebClient wc = new WebClient())
                         {
                             wc.Headers.Add("User-Agent", "Mozilla/5.0");
@@ -54,13 +52,11 @@ namespace ForNewsRSS.RssProcessor
                             doc.LoadXml(xml);
                         }
 
-                        // تعریف Namespace ها
                         XmlNamespaceManager ns = new XmlNamespaceManager(doc.NameTable);
                         ns.AddNamespace("rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#");
                         ns.AddNamespace("rss", "http://purl.org/rss/1.0/");
                         ns.AddNamespace("dc", "http://purl.org/dc/elements/1.1/");
 
-                        // انتخاب آیتم‌ها
                         XmlNodeList items = doc.SelectNodes("//rss:item", ns);
 
 
@@ -85,7 +81,6 @@ namespace ForNewsRSS.RssProcessor
                                 continue;
                             }
 
-                            // ساخت SyndicationItem دستی برای سازگاری با بقیه کد
                             var syndItem = new SyndicationItem
                             {
                                 Title = new TextSyndicationContent(title ?? "No title"),
@@ -122,12 +117,10 @@ namespace ForNewsRSS.RssProcessor
                 {
                     Logger.LogInformation("No potential new items to process for {Source}. Finishing early.", Config.Name);
 
-                    // همچنان لاگ فرآیند را ذخیره کن (حتی اگر هیچ کاری انجام نشده)
                     await base.SaveProcessLog(startTime, totalFetched, 0, 0, 0, "No new items");
                     return;
                 }
 
-                // === مرحله ۲: چک تکراری بودن در دیتابیس ===
                 Logger.LogDebug("Checking {Count} links against existing database entries", allNewLinks.Count);
 
                 var existingLinks = await NewsCollection
@@ -141,7 +134,6 @@ namespace ForNewsRSS.RssProcessor
                 Logger.LogInformation("Found {Duplicates} duplicate links already in database. {NewCount} truly new items.",
                     duplicatesFound, potentialNews.Count - duplicatesFound);
 
-                // === مرحله ۳: پارس و ساخت آیتم‌های جدید ===
                 var newsToInsert = new List<NewsItem>();
 
                 foreach (var (link, item) in potentialNews)
@@ -169,9 +161,7 @@ namespace ForNewsRSS.RssProcessor
                     return;
                 }
 
-                // === مرحله ۴: ذخیره در دیتابیس ===
-                //Logger.LogInformation("Inserting {Count} new news items into database for {Source}", newInserted);
-
+               
                 try
                 {
                     await NewsCollection.InsertManyAsync(newsToInsert, cancellationToken: ct);
@@ -180,13 +170,11 @@ namespace ForNewsRSS.RssProcessor
                 catch (Exception ex)
                 {
                     Logger.LogError(ex, "Failed to insert news items into MongoDB for source {Source}", Config.Name);
-                    // حتی در صورت خطا، لاگ فرآیند را ذخیره کن
                     await SaveProcessLog(startTime, totalFetched, 0, 0, 0, "Insert failed: " + ex.Message);
                     return;
                 }
                 totalFetched += newInserted;
 
-                // === مرحله ۵: ارسال به تلگرام ===
                 Logger.LogInformation("Starting to send {Count} new items to Telegram (ChatId: {ChatId})", newInserted, Config.TelegramChatId);
 
                 var (successful, failed) = await base.SendToTelegramAsync(newsToInsert);
@@ -203,7 +191,6 @@ namespace ForNewsRSS.RssProcessor
                     Logger.LogInformation("All {Count} items successfully sent to Telegram", newInserted);
                 }
 
-                // === مرحله نهایی: ذخیره لاگ فرآیند ===
                 var duration = DateTime.UtcNow - startTime;
                 await SaveProcessLog(startTime, totalFetched, newInserted, sentToTelegram, failedToSend, $"Completed in {duration.TotalSeconds:F1}s");
 
@@ -213,7 +200,6 @@ namespace ForNewsRSS.RssProcessor
             catch (Exception ex)
             {
                 Logger.LogCritical(ex, "Critical error in processing {Source}", Config.Name);
-                // اختیاری: rethrow نکن تا اپ ادامه دهد
             }
         }
 
@@ -222,7 +208,6 @@ namespace ForNewsRSS.RssProcessor
             if (string.IsNullOrEmpty(dateStr))
                 return DateTimeOffset.UtcNow;
 
-            // فرمت DC date معمولاً ISO 8601 هست مثل 2025-12-27T17:59:00Z
             if (DateTimeOffset.TryParse(dateStr, out var dt))
                 return dt;
 

@@ -13,7 +13,6 @@ namespace ForNewsRSS.Extensions
                 var processLogCollection = database.GetCollection<ProcessLog>("ProcessLog");
                 var errorLogCollection = database.GetCollection<TelegramErrorLog>("TelegramErrorLog");
 
-                // دریافت لیست منحصربه‌فرد منابع
                 var distinctSources = await processLogCollection
                     .Distinct(p => p.SourceName, Builders<ProcessLog>.Filter.Empty)
                     .ToListAsync();
@@ -22,7 +21,6 @@ namespace ForNewsRSS.Extensions
                 sb.AppendLine("Server Running V:1.105");
                 sb.AppendLine();
 
-                // === جدول آمار کلی منابع ===
                 sb.AppendLine("=== RSS Sources Overall Statistics (All Time Summary) ===");
                 sb.AppendLine();
                 sb.AppendLine("+----------------+-------------+----------------+------------------------+------------------+");
@@ -47,7 +45,6 @@ namespace ForNewsRSS.Extensions
                 sb.AppendLine();
                 sb.AppendLine();
 
-                // === لیست آخرین ۱۰۰ خطای تلگرام ===
                 sb.AppendLine("=== Last 100 Telegram Send Errors (Newest First) ===");
                 sb.AppendLine();
 

@@ -29,15 +29,13 @@ builder.Services.AddHostedService<RssBackgroundService>();
 
 var app = builder.Build();
 
-// فقط در محیط Development این‌ها رو فعال کن
 if (app.Environment.IsDevelopment())
 {
-    // اگر MVC یا Razor Pages داری، این‌ها رو نگه دار
-    // اما اگر فقط Background Service داری، این‌ها لازم نیست
+   
 }
 else
 {
-    app.UseExceptionHandler("/Error"); // بهتره یک صفحه خطا داشته باشی یا لاگ کنی
+    app.UseExceptionHandler("/Error"); 
     app.UseHsts();
 }
 

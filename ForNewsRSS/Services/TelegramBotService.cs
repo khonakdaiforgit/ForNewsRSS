@@ -1,5 +1,4 @@
-﻿// File: TelegramBotService.cs
-using System.Net.Http;
+﻿using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 
@@ -34,8 +33,6 @@ namespace ForNewsRSS.Services
                 {
                     await SendMessageAsync(news, chatId);
                 }
-
-                // تأخیر ۱ ثانیه برای جلوگیری از rate limit تلگرام (حدود ۳۰ پیام در ثانیه به یک چت، اما بهتر محافظه‌کار باشیم)
             }
             catch (Exception ex)
             {
@@ -63,10 +60,10 @@ namespace ForNewsRSS.Services
             var payload = new
             {
                 chat_id = chatId,
-                photo = news.ImageUrl,                    // مستقیم URL ارسال می‌شود
+                photo = news.ImageUrl,                    
                 caption = BuildMessage(news),
                 parse_mode = "HTML",
-                disable_web_page_preview = true           // برای جلوگیری از پیش‌نمایش لینک در کپشن
+                disable_web_page_preview = true           
             };
 
             try
@@ -76,7 +73,6 @@ namespace ForNewsRSS.Services
             }
             catch (Exception ex) when (ex.Message.Contains("400") || ex.Message.Contains("BAD_REQUEST"))
             {
-                // اگر URL تصویر مشکل داشت (مثلاً تلگرام نتونست دانلود کنه)، fallback به متن
                 _logger.LogWarning(ex, "Failed to send photo via URL (fallback to text): {Title} - ImageUrl: {ImageUrl}",
                     news.Title, news.ImageUrl);
 
@@ -104,9 +100,9 @@ namespace ForNewsRSS.Services
                         retryElement.TryGetInt32(out var retryAfter))
                     {
                         _logger.LogWarning("Telegram rate limit hit. Retrying after {RetryAfter} seconds.", retryAfter);
-                        await Task.Delay(TimeSpan.FromSeconds(retryAfter + 1)); // +1 برای احتیاط
-                                                                                // دوباره امتحان کن (recursive یا loop)
-                        await PostJsonAsync(method, payload); // retry
+                        await Task.Delay(TimeSpan.FromSeconds(retryAfter + 1)); 
+                                                                                
+                        await PostJsonAsync(method, payload); 
                         return;
                     }
                 }
@@ -119,7 +115,6 @@ namespace ForNewsRSS.Services
 
         private string BuildMessage(NewsItem news)
         {
-            // استفاده از raw string literal برای خوانایی بیشتر
             return $"""
                     <b>{EscapeHtml(news.Title)}</b>
 
@@ -131,7 +126,6 @@ namespace ForNewsRSS.Services
                     """;
         }
 
-        // جلوگیری از مشکلات HTML injection در عنوان یا خلاصه (اختیاری اما توصیه می‌شود)
         private static string EscapeHtml(string input)
         {
             if (string.IsNullOrEmpty(input)) return string.Empty;

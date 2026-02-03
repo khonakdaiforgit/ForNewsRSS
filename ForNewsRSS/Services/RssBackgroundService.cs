@@ -28,17 +28,15 @@ namespace ForNewsRSS.Services
         {
             _logger.LogInformation("RSS Aggregator started with {Count} sources.", _sources.Count);
 
-            // اجرای اولیه با staggered delay
             await ProcessAllSourcesStaggeredAsync(stoppingToken);
 
-            // اجرای دوره‌ای: هر منبع در task جداگانه با loop خودش
             var tasks = _sources.Select(source => RunPeriodicProcessing(source, stoppingToken));
             await Task.WhenAll(tasks);
         }
 
         private async Task RunPeriodicProcessing(SourceConfig source, CancellationToken stoppingToken)
         {
-            var delaySeconds = _sources.IndexOf(source) * 5; // staggered delay بر اساس ایندکس
+            var delaySeconds = _sources.IndexOf(source) * 5; 
             var initialDelay = TimeSpan.FromSeconds(delaySeconds);
 
             if (initialDelay > TimeSpan.Zero)
@@ -47,7 +45,7 @@ namespace ForNewsRSS.Services
                 await Task.Delay(initialDelay, stoppingToken);
             }
 
-            using var timer = new PeriodicTimer(source.FetchInterval); // using برای dispose خودکار
+            using var timer = new PeriodicTimer(source.FetchInterval); 
 
             try
             {
@@ -64,20 +62,19 @@ namespace ForNewsRSS.Services
             {
                 _logger.LogError(ex, "Unexpected error in periodic processing for {Source}", source.Name);
             }
-            // timer به خاطر using dispose می‌شود
         }
         private async Task ProcessAllSourcesStaggeredAsync(CancellationToken ct)
         {
             foreach (var (source, index) in _sources.Select((s, i) => (s, i)))
             {
-                var delay = TimeSpan.FromSeconds(index * 5); // همان 15 ثانیه فاصله
+                var delay = TimeSpan.FromSeconds(index * 5); 
 
                 if (delay > TimeSpan.Zero)
                 {
                     await Task.Delay(delay, ct);
                 }
 
-                _ = ProcessSourceAsync(source, ct); // fire and forget — یا await اگر بخوای صبر کنی
+                _ = ProcessSourceAsync(source, ct); 
             }
         }
 

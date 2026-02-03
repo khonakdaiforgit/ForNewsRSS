@@ -21,7 +21,6 @@ namespace ForNewsRSS.RssProcessor
         {
             var imageUrl = base.ExtractImage(item);
 
-            // ارتقای کیفیت تصویر BBC از 240p به 1024p
             if (!string.IsNullOrEmpty(imageUrl) && imageUrl.Contains("/240/"))
             {
                 imageUrl = imageUrl.Replace("/240/", "/1024/");

@@ -24,12 +24,10 @@ namespace ForNewsRSS.RssProcessor
             var baseItem = base.ParseItem(item, sourceName);
             if (baseItem == null) return null;
 
-            // پاک کردن HTML از Summary (strip tags)
             if (!string.IsNullOrEmpty(baseItem.Summary))
             {
                 baseItem.Summary= Regex.Replace(baseItem.Summary, "<.*?>", String.Empty);
           
-                // اختیاری: کوتاه کردن اگر خیلی طولانی باشه
                 if (baseItem.Summary.Length > 800)
                     baseItem.Summary = baseItem.Summary.Substring(0, 800) + "...";
             }
@@ -40,19 +38,17 @@ namespace ForNewsRSS.RssProcessor
         protected override string? ExtractImage(SyndicationItem item)
         {
 
-            // اگر پایه چیزی پیدا نکرد، دستی بگرد
             var ns = "http://search.yahoo.com/mrss/";
 
             var contentElements = item.ElementExtensions
                 .Where(e => e.OuterName == "content" && e.OuterNamespace == ns)
                 .Select(e => e.GetObject<XElement>())
-                .Where(el => (string?)el.Attribute("medium") == "image" || (string?)el.Attribute("medium") == null) // گاهی medium نداره
+                .Where(el => (string?)el.Attribute("medium") == "image" || (string?)el.Attribute("medium") == null) 
                 .Where(el => el.Attribute("url") != null);
 
             if (!contentElements.Any())
                 return null;
 
-            // انتخاب بهترین: بزرگ‌ترین width
             var best = contentElements
                 .OrderByDescending(el =>
                 {
@@ -62,7 +58,6 @@ namespace ForNewsRSS.RssProcessor
 
             var url = (string?)best?.Attribute("url");
 
-            // اختیاری: اگر بخوای کیفیت رو بیشتر ارتقا بدی (مثلاً width=1200 اگر موجود نبود)
             return url;
         }
     }
