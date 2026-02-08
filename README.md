@@ -6,8 +6,8 @@ A .NET-based RSS aggregator that fetches news from multiple sources (e.g., NYTim
 ```json
 {
   "ConnectionStrings": {
-    "MongoDB": "mongodb+srv://khonakdaridev:CXpr4WCBIScZzVwp@cluster0.enzyfgq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-  },
+    "MongoDB": "mongodb+srv://user:pass@cluster0.....mongodb.net/?retryWrites=true&w=majority"  
+},
   "RssSources": [
     {
       "Name": "NYTimes",
