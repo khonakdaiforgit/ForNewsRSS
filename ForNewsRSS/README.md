@@ -1,3 +1,9 @@
+# ForNewsRSS
+
+A .NET-based RSS aggregator that fetches news from multiple sources (e.g., NYTimes, BBC, FoxNews, CNN, Guardian & ...), stores them in MongoDB, and forwards them to specified Telegram channels. It includes custom parsers for different RSS formats, error logging, and a simple reporting endpoint.
+
+
+```json
 {
   "ConnectionStrings": {
     "MongoDB": "mongodb+srv://khonakdaridev:CXpr4WCBIScZzVwp@cluster0.enzyfgq.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"

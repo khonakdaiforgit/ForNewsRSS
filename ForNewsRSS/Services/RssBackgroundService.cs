@@ -110,7 +110,6 @@ namespace ForNewsRSS.Services
             return source.Name switch
             {
                 "BBC" => new BBCRssProcessor(logger, database, telegramService, source),
-                "CNN" => new CNNRssProcessor(logger, database, telegramService, source),
                 "Guardian" => new GuardianRssProcessor(logger, database, telegramService, source),
                 "ABCNews" => new ABCNewsRssProcessor(logger, database, telegramService, source),
                 "DeutscheWelle" => new DeutscheWelleRssProcessor(logger, database, telegramService, source),
