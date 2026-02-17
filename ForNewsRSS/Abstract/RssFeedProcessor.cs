@@ -2,6 +2,7 @@
 using ForNewsRSS.Entities;
 using ForNewsRSS.Services;
 using MongoDB.Driver;
+using System;
 using System.ServiceModel.Syndication;
 using System.Xml;
 using System.Xml.Linq;
@@ -54,8 +55,7 @@ namespace ForNewsRSS.Abstract
                     {
                         Logger.LogDebug("Fetching RSS feed: {Url}", url);
 
-                        using var reader = XmlReader.Create(url);
-                        var feed = SyndicationFeed.Load(reader);
+                        SyndicationFeed feed = await LoadFeedAsync(url);
 
                         if (feed?.Items == null || !feed.Items.Any())
                         {
@@ -147,7 +147,7 @@ namespace ForNewsRSS.Abstract
                     return;
                 }
 
-       
+
                 try
                 {
                     await NewsCollection.InsertManyAsync(newsToInsert, cancellationToken: ct);
@@ -189,6 +189,13 @@ namespace ForNewsRSS.Abstract
                 Logger.LogCritical(ex, "Critical error in processing {Source}", Config.Name);
             }
 
+        }
+
+        protected virtual async Task<SyndicationFeed> LoadFeedAsync(string url)
+        {
+            using var reader = XmlReader.Create(url);
+
+            return SyndicationFeed.Load(reader);
         }
 
         protected async Task SaveProcessLog(DateTime startTime, int fetched, int inserted, int sent, int failed, string notes)

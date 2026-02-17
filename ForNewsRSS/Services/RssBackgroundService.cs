@@ -113,6 +113,8 @@ namespace ForNewsRSS.Services
                 "Guardian" => new GuardianRssProcessor(logger, database, telegramService, source),
                 "ABCNews" => new ABCNewsRssProcessor(logger, database, telegramService, source),
                 "DeutscheWelle" => new DeutscheWelleRssProcessor(logger, database, telegramService, source),
+                "Leader.ir" => new LeaderIrRssProcessor(logger, database, telegramService, source),
+
                 _ => new _DefaultRssProcessor(logger, database, telegramService, source)
             };
         }
